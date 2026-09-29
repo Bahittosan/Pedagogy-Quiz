@@ -142,6 +142,52 @@
     font-size: 15px;
     cursor: pointer;
   }
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    padding: 16px;
+  }
+  .modal-box {
+    background: var(--panel-bg);
+    color: var(--text);
+    border-radius: 14px;
+    padding: 24px;
+    max-width: 380px;
+    width: 100%;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  }
+  .modal-box h2 {
+    margin-top: 0;
+    color: #e53e3e;
+    font-size: 19px;
+  }
+  .modal-box .stat-line {
+    font-size: 15px;
+    margin: 8px 0;
+  }
+  .modal-box .final-score {
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--accent);
+    margin: 14px 0;
+  }
+  .modal-box button {
+    background: #38a169;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 8px;
+  }
 </style>
 </head>
 <body>
@@ -204,6 +250,10 @@ const data = [
 ];
 
 const BATCH_SIZE = 5;
+const MAX_ATTEMPTS_PER_BATCH = 8;
+let batchAttemptsUsed = 0;
+let batchCorrectCount = 0;
+let batchWrongCount = 0;
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -246,6 +296,9 @@ function renderBatch() {
 
   matchedInBatch = new Set();
   selectedTermPos = null;
+  batchAttemptsUsed = 0;
+  batchCorrectCount = 0;
+  batchWrongCount = 0;
   batchTermOrder = shuffle(batchIndices.map((_, i) => i));
   batchDefOrder = shuffle(batchIndices.map((_, i) => i));
 
@@ -258,6 +311,7 @@ function renderBatch() {
     </div>
     <div class="progress">Топ: ${batchIndex + 1} / ${totalBatches} (сұрақ ${batchIndex * BATCH_SIZE + 1}–${batchIndex * BATCH_SIZE + batchIndices.length} / ${data.length})</div>
     <div class="score" id="scoreLine">Ұпай: ${totalScore}</div>
+    <div class="progress" id="attemptsLine">Попыток осталось: ${MAX_ATTEMPTS_PER_BATCH - batchAttemptsUsed} / ${MAX_ATTEMPTS_PER_BATCH}</div>
     <div class="status" id="status">Терминді таңдап, сәйкес анықтаманы басыңыз (немесе сүйреп апарыңыз).</div>
     <div class="board">
       <div class="column">
@@ -332,37 +386,79 @@ function onDefClick(pos, el) {
 function checkMatch(termPos, defPos, termEl, defEl) {
   if (!termEl) termEl = document.querySelector(`.card.term[data-pos="${termPos}"]`);
   if (matchedInBatch.has(termPos) || matchedInBatch.has(defPos)) return;
+  if (batchAttemptsUsed >= MAX_ATTEMPTS_PER_BATCH) return;
+
+  batchAttemptsUsed++;
 
   if (termPos === defPos) {
     matchedInBatch.add(termPos);
+    batchCorrectCount++;
+    totalScore += 1;
     if (termEl) { termEl.classList.remove('selected'); termEl.classList.add('correct'); }
     defEl.classList.add('correct');
-    totalScore += 1;
     document.getElementById('scoreLine').textContent = `Ұпай: ${totalScore}`;
+    document.getElementById('attemptsLine').textContent = `Попыток осталось: ${MAX_ATTEMPTS_PER_BATCH - batchAttemptsUsed} / ${MAX_ATTEMPTS_PER_BATCH}`;
     document.getElementById('status').textContent = 'Дұрыс! ✅';
     selectedTermPos = null;
 
     setTimeout(() => {
       if (matchedInBatch.size >= batchIndices.length) {
-        document.getElementById('status').textContent = 'Келесі 5 терминге өтеміз...';
-        setTimeout(() => {
-          batchIndex++;
-          renderBatch();
-        }, 1000);
+        showResultModal(false);
       } else {
         renderCards();
       }
     }, 450);
   } else {
+    batchWrongCount++;
+    totalScore -= 0.5;
     if (termEl) termEl.classList.add('wrong');
     defEl.classList.add('wrong');
+    document.getElementById('scoreLine').textContent = `Ұпай: ${totalScore}`;
+    document.getElementById('attemptsLine').textContent = `Попыток осталось: ${MAX_ATTEMPTS_PER_BATCH - batchAttemptsUsed} / ${MAX_ATTEMPTS_PER_BATCH}`;
     document.getElementById('status').textContent = 'Қате, қайта көріңіз ❌';
+
+    if (batchAttemptsUsed >= MAX_ATTEMPTS_PER_BATCH && matchedInBatch.size < batchIndices.length) {
+      setTimeout(() => showResultModal(true), 500);
+      return;
+    }
+
     setTimeout(() => {
       if (termEl) termEl.classList.remove('wrong', 'selected');
       defEl.classList.remove('wrong');
       selectedTermPos = null;
     }, 650);
   }
+}
+
+function showResultModal(limitExceeded) {
+  const isLastBatch = (batchIndex + 1) * BATCH_SIZE >= data.length;
+  const title = limitExceeded ? 'Лимит попыток исчерпан' : 'Топ сәтті аяқталды! ✅';
+  const titleColor = limitExceeded ? '#e53e3e' : '#38a169';
+  const btnLabel = limitExceeded ? 'Начать заново' : (isLastBatch ? 'Қорытынды' : 'Келесі топ');
+
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-box">
+      <h2 style="color:${titleColor}">${title}</h2>
+      <div class="stat-line">Верных ответов: ${batchCorrectCount}</div>
+      <div class="stat-line">Неверных ответов: ${batchWrongCount}</div>
+      <div class="final-score">Ваш результат: ${totalScore} баллов</div>
+      <button id="modalBtn">${btnLabel}</button>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('modalBtn').onclick = () => {
+    overlay.remove();
+    if (limitExceeded) {
+      startGame();
+    } else if (isLastBatch) {
+      renderFinal();
+    } else {
+      batchIndex++;
+      renderBatch();
+    }
+  };
 }
 
 // --- touch drag support ---
