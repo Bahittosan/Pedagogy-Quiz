@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Жоғары мектепті реформалау — викторина</title>
+<title>Жоғары мектепті реформалау — сәйкестендіру ойыны</title>
 <style>
   * { box-sizing: border-box; }
   :root {
@@ -78,50 +78,57 @@
     text-align: center;
     font-weight: bold;
     color: var(--accent);
-    margin-bottom: 14px;
-  }
-  .batch {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-  }
-  .qcard {
-    background: var(--card-bg);
-    border-radius: 12px;
-    padding: 16px;
-    border: 1px solid rgba(0,0,0,0.06);
-  }
-  .qterm {
-    font-weight: bold;
-    font-size: 17px;
     margin-bottom: 10px;
-    color: var(--accent);
   }
-  .options {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .option {
-    background: var(--panel-bg);
-    border: 2px solid #b9c6e0;
-    border-radius: 8px;
-    padding: 10px 12px;
+  .status {
+    text-align: center;
     font-size: 14px;
-    cursor: pointer;
-    transition: background 0.2s, border-color 0.2s;
+    min-height: 20px;
+    margin-bottom: 10px;
+  }
+  .board {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .column {
+    flex: 1;
+    min-width: 260px;
+  }
+  .column h2 {
+    font-size: 15px;
+    color: var(--accent);
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 2px solid #b9c6e0;
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    cursor: grab;
+    transition: background 0.25s, border-color 0.25s, transform 0.15s;
     user-select: none;
   }
-  .option:active { transform: scale(0.99); }
-  .option.correct { background: #c6f6d5 !important; border-color: #38a169 !important; color: #14532d; }
-  .option.wrong { background: #fed7d7 !important; border-color: #e53e3e !important; color: #7f1d1d; }
-  .option.disabled { pointer-events: none; opacity: 0.85; }
-  .next-hint {
-    text-align: center;
-    margin-top: 16px;
-    font-size: 14px;
-    color: var(--accent);
-    min-height: 20px;
+  .card.term { font-weight: bold; }
+  .card.selected {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(45,90,160,0.25);
+  }
+  .card.correct { background: #c6f6d5 !important; border-color: #38a169 !important; color: #14532d; }
+  .card.wrong { background: #fed7d7 !important; border-color: #e53e3e !important; color: #7f1d1d; animation: shake 0.4s; }
+  .card.matched { opacity: 0.5; cursor: default; pointer-events: none; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-6px); }
+    75% { transform: translateX(6px); }
+  }
+  .card.dragover { border-color: var(--accent); }
+  @media (max-width: 600px) {
+    .board { flex-direction: column; }
   }
   .final { text-align: center; }
   .final .score-big { font-size: 24px; font-weight: bold; color: var(--accent); margin: 18px 0; }
@@ -141,7 +148,7 @@
 <div class="wrap" id="app"></div>
 
 <script>
-// 50 вопросов из лекции "Жоғары мектепті реформаландыру"
+// 50 терминов из лекции "Жоғары мектепті реформаландыру"
 const data = [
   { term: "Тенденция", def: "Латын тілінен аударғанда қандай да бір құбылыстардың, ой-пікірдің, идеяның даму бағыты." },
   { term: "«Ұлттық университет» мәртебесі", def: "Жоғары оқу орнының түріне, ұйымдық-құқықтық нысанына, мемлекеттік аккредиттеудің болуына немесе болмауына байланысты айқындалатын мәртебе." },
@@ -197,7 +204,6 @@ const data = [
 ];
 
 const BATCH_SIZE = 5;
-const NUM_OPTIONS = 5;
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -211,8 +217,11 @@ function shuffle(arr) {
 let order = [];
 let batchIndex = 0;
 let totalScore = 0;
-let answeredInBatch = 0;
-let batchOptionsCache = [];
+let selectedTermPos = null;
+let matchedInBatch = new Set();
+let batchIndices = [];
+let batchTermOrder = [];
+let batchDefOrder = [];
 
 function startGame() {
   order = shuffle(data.map((_, i) => i));
@@ -226,102 +235,199 @@ function currentBatchIndices() {
   return order.slice(start, start + BATCH_SIZE);
 }
 
-function buildOptionsFor(correctIdx) {
-  const others = data.map((_, i) => i).filter(i => i !== correctIdx);
-  const distractorCount = Math.min(NUM_OPTIONS - 1, others.length);
-  const distractors = shuffle(others).slice(0, distractorCount);
-  return shuffle([correctIdx, ...distractors]);
-}
-
 function renderBatch() {
   const app = document.getElementById('app');
-  const indices = currentBatchIndices();
+  batchIndices = currentBatchIndices();
 
-  if (indices.length === 0) {
+  if (batchIndices.length === 0) {
     renderFinal();
     return;
   }
 
-  answeredInBatch = 0;
-  batchOptionsCache = indices.map(correctIdx => buildOptionsFor(correctIdx));
+  matchedInBatch = new Set();
+  selectedTermPos = null;
+  batchTermOrder = shuffle(batchIndices.map((_, i) => i));
+  batchDefOrder = shuffle(batchIndices.map((_, i) => i));
 
   const totalBatches = Math.ceil(data.length / BATCH_SIZE);
   app.innerHTML = `
-    <h1>Жоғары мектепті реформалау — викторина</h1>
+    <h1>Жоғары мектепті реформалау — сәйкестендіру</h1>
     <div class="topbar">
       <div></div>
       <button onclick="startGame()">Қайта бастау</button>
     </div>
-    <div class="progress">Топ: ${batchIndex + 1} / ${totalBatches} (сұрақ ${batchIndex * BATCH_SIZE + 1}–${batchIndex * BATCH_SIZE + indices.length} / ${data.length})</div>
+    <div class="progress">Топ: ${batchIndex + 1} / ${totalBatches} (сұрақ ${batchIndex * BATCH_SIZE + 1}–${batchIndex * BATCH_SIZE + batchIndices.length} / ${data.length})</div>
     <div class="score" id="scoreLine">Ұпай: ${totalScore}</div>
-    <div class="batch" id="batchDiv"></div>
-    <div class="next-hint" id="nextHint"></div>
+    <div class="status" id="status">Терминді таңдап, сәйкес анықтаманы басыңыз (немесе сүйреп апарыңыз).</div>
+    <div class="board">
+      <div class="column">
+        <h2>Терминдер</h2>
+        <div id="termsCol"></div>
+      </div>
+      <div class="column">
+        <h2>Анықтамалар</h2>
+        <div id="defsCol"></div>
+      </div>
+    </div>
   `;
+  renderCards();
+}
 
-  const batchDiv = document.getElementById('batchDiv');
-  indices.forEach((correctIdx, qPos) => {
-    const item = data[correctIdx];
-    const options = batchOptionsCache[qPos];
+function renderCards() {
+  const termsCol = document.getElementById('termsCol');
+  const defsCol = document.getElementById('defsCol');
+  termsCol.innerHTML = '';
+  defsCol.innerHTML = '';
 
-    const card = document.createElement('div');
-    card.className = 'qcard';
-    card.dataset.qpos = qPos;
+  batchTermOrder.forEach(pos => {
+    const globalIdx = batchIndices[pos];
+    const item = data[globalIdx];
+    const div = document.createElement('div');
+    div.className = 'card term';
+    div.dataset.pos = pos;
+    div.draggable = true;
+    div.textContent = item.term;
+    div.addEventListener('click', () => onTermClick(pos, div));
+    div.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', pos); });
+    div.addEventListener('touchstart', e => onTouchStart(e, pos, div), { passive: true });
+    if (matchedInBatch.has(pos)) div.classList.add('matched');
+    termsCol.appendChild(div);
+  });
 
-    const termDiv = document.createElement('div');
-    termDiv.className = 'qterm';
-    termDiv.textContent = `${batchIndex * BATCH_SIZE + qPos + 1}. ${item.term}`;
-    card.appendChild(termDiv);
-
-    const optsDiv = document.createElement('div');
-    optsDiv.className = 'options';
-    options.forEach(optIdx => {
-      const optItem = data[optIdx];
-      const optDiv = document.createElement('div');
-      optDiv.className = 'option';
-      optDiv.textContent = optItem.def;
-      optDiv.onclick = () => onOptionClick(qPos, optIdx, correctIdx, optDiv, card);
-      optsDiv.appendChild(optDiv);
+  batchDefOrder.forEach(pos => {
+    const globalIdx = batchIndices[pos];
+    const item = data[globalIdx];
+    const div = document.createElement('div');
+    div.className = 'card def';
+    div.dataset.pos = pos;
+    div.textContent = item.def;
+    div.addEventListener('click', () => onDefClick(pos, div));
+    div.addEventListener('dragover', e => { e.preventDefault(); div.classList.add('dragover'); });
+    div.addEventListener('dragleave', () => div.classList.remove('dragover'));
+    div.addEventListener('drop', e => {
+      e.preventDefault();
+      div.classList.remove('dragover');
+      const draggedPos = parseInt(e.dataTransfer.getData('text/plain'));
+      checkMatch(draggedPos, pos, null, div);
     });
-    card.appendChild(optsDiv);
-    batchDiv.appendChild(card);
+    if (matchedInBatch.has(pos)) div.classList.add('matched');
+    defsCol.appendChild(div);
   });
 }
 
-function onOptionClick(qPos, chosenIdx, correctIdx, el, cardEl) {
-  if (cardEl.dataset.answered === '1') return;
-  cardEl.dataset.answered = '1';
+function onTermClick(pos, el) {
+  if (matchedInBatch.has(pos)) return;
+  document.querySelectorAll('.card.term').forEach(c => c.classList.remove('selected'));
+  selectedTermPos = pos;
+  el.classList.add('selected');
+}
 
-  const optionEls = cardEl.querySelectorAll('.option');
-  optionEls.forEach(o => o.classList.add('disabled'));
+function onDefClick(pos, el) {
+  if (matchedInBatch.has(pos)) return;
+  if (selectedTermPos === null) return;
+  const termEl = document.querySelector(`.card.term[data-pos="${selectedTermPos}"]`);
+  checkMatch(selectedTermPos, pos, termEl, el);
+}
 
-  if (chosenIdx === correctIdx) {
-    el.classList.add('correct');
+function checkMatch(termPos, defPos, termEl, defEl) {
+  if (!termEl) termEl = document.querySelector(`.card.term[data-pos="${termPos}"]`);
+  if (matchedInBatch.has(termPos) || matchedInBatch.has(defPos)) return;
+
+  if (termPos === defPos) {
+    matchedInBatch.add(termPos);
+    if (termEl) { termEl.classList.remove('selected'); termEl.classList.add('correct'); }
+    defEl.classList.add('correct');
     totalScore += 1;
-  } else {
-    el.classList.add('wrong');
-    optionEls.forEach(o => {
-      if (o.textContent === data[correctIdx].def) o.classList.add('correct');
-    });
-  }
+    document.getElementById('scoreLine').textContent = `Ұпай: ${totalScore}`;
+    document.getElementById('status').textContent = 'Дұрыс! ✅';
+    selectedTermPos = null;
 
-  document.getElementById('scoreLine').textContent = `Ұпай: ${totalScore}`;
-  answeredInBatch++;
-
-  const totalInBatch = currentBatchIndices().length;
-  if (answeredInBatch >= totalInBatch) {
-    document.getElementById('nextHint').textContent = 'Келесі 5 сұраққа өтеміз...';
     setTimeout(() => {
-      batchIndex++;
-      renderBatch();
-    }, 1400);
+      if (matchedInBatch.size >= batchIndices.length) {
+        document.getElementById('status').textContent = 'Келесі 5 терминге өтеміз...';
+        setTimeout(() => {
+          batchIndex++;
+          renderBatch();
+        }, 1000);
+      } else {
+        renderCards();
+      }
+    }, 450);
+  } else {
+    if (termEl) termEl.classList.add('wrong');
+    defEl.classList.add('wrong');
+    document.getElementById('status').textContent = 'Қате, қайта көріңіз ❌';
+    setTimeout(() => {
+      if (termEl) termEl.classList.remove('wrong', 'selected');
+      defEl.classList.remove('wrong');
+      selectedTermPos = null;
+    }, 650);
   }
+}
+
+// --- touch drag support ---
+let touchGhost = null;
+let touchSourcePos = null;
+
+function onTouchStart(e, pos, el) {
+  if (matchedInBatch.has(pos)) return;
+  touchSourcePos = pos;
+  onTermClick(pos, el);
+
+  const rect = el.getBoundingClientRect();
+  touchGhost = el.cloneNode(true);
+  touchGhost.style.position = 'fixed';
+  touchGhost.style.left = rect.left + 'px';
+  touchGhost.style.top = rect.top + 'px';
+  touchGhost.style.width = rect.width + 'px';
+  touchGhost.style.zIndex = '9999';
+  touchGhost.style.opacity = '0.85';
+  touchGhost.style.pointerEvents = 'none';
+  touchGhost.style.transform = 'scale(1.03)';
+  document.body.appendChild(touchGhost);
+
+  const touch = e.touches[0];
+  const offsetX = touch.clientX - rect.left;
+  const offsetY = touch.clientY - rect.top;
+
+  function moveHandler(ev) {
+    const t = ev.touches[0];
+    touchGhost.style.left = (t.clientX - offsetX) + 'px';
+    touchGhost.style.top = (t.clientY - offsetY) + 'px';
+    document.querySelectorAll('.card.def').forEach(d => d.classList.remove('dragover'));
+    touchGhost.style.display = 'none';
+    const under = document.elementFromPoint(t.clientX, t.clientY);
+    touchGhost.style.display = '';
+    const defCard = under ? under.closest('.card.def') : null;
+    if (defCard) defCard.classList.add('dragover');
+  }
+
+  function endHandler(ev) {
+    document.removeEventListener('touchmove', moveHandler);
+    document.removeEventListener('touchend', endHandler);
+    if (touchGhost) { touchGhost.remove(); touchGhost = null; }
+    document.querySelectorAll('.card.def').forEach(d => d.classList.remove('dragover'));
+
+    const t = ev.changedTouches[0];
+    const under = document.elementFromPoint(t.clientX, t.clientY);
+    const defCard = under ? under.closest('.card.def') : null;
+    if (defCard) {
+      const defPos = parseInt(defCard.dataset.pos);
+      const termEl = document.querySelector(`.card.term[data-pos="${touchSourcePos}"]`);
+      checkMatch(touchSourcePos, defPos, termEl, defCard);
+    }
+    touchSourcePos = null;
+  }
+
+  document.addEventListener('touchmove', moveHandler, { passive: true });
+  document.addEventListener('touchend', endHandler);
 }
 
 function renderFinal() {
   const app = document.getElementById('app');
   app.innerHTML = `
     <div class="final">
-      <h1>Викторина аяқталды!</h1>
+      <h1>Ойын аяқталды!</h1>
       <div class="score-big">Сіздің қорытынды баллыңыз: ${totalScore} / ${data.length}</div>
       <div class="thanks">Қатысқаныңыз үшін рахмет! 🙏</div>
       <button onclick="startGame()">Қайта ойнау</button>
