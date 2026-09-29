@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Жоғары мектепті реформалау — викторина</title>
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg1: #1f3a93;
+    --bg2: #3a6ea5;
+    --card-bg: #f7f8fc;
+    --text: #1a1a1a;
+    --panel-bg: #ffffff;
+    --accent: #2d5aa0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --card-bg: #24263a;
+      --text: #eee;
+      --panel-bg: #171826;
+    }
+  }
+  :root[data-theme="dark"] {
+    --card-bg: #24263a;
+    --text: #eee;
+    --panel-bg: #171826;
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+    background: linear-gradient(135deg, var(--bg1), var(--bg2));
+    margin: 0;
+    padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    min-height: 100%;
+    color: var(--text);
+  }
+  .wrap {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--panel-bg);
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+  }
+  h1 {
+    text-align: center;
+    color: var(--accent);
+    margin-top: 0;
+    font-size: 20px;
+  }
+  .topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .topbar button {
+    background: #888;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .progress {
+    text-align: center;
+    font-size: 14px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .score {
+    text-align: center;
+    font-weight: bold;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .batch {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+  }
+  .qcard {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 16px;
+    border: 1px solid rgba(0,0,0,0.06);
+  }
+  .qterm {
+    font-weight: bold;
+    font-size: 17px;
+    margin-bottom: 10px;
+    color: var(--accent);
+  }
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .option {
+    background: var(--panel-bg);
+    border: 2px solid #b9c6e0;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+    user-select: none;
+  }
+  .option:active { transform: scale(0.99); }
+  .option.correct { background: #c6f6d5 !important; border-color: #38a169 !important; color: #14532d; }
+  .option.wrong { background: #fed7d7 !important; border-color: #e53e3e !important; color: #7f1d1d; }
+  .option.disabled { pointer-events: none; opacity: 0.85; }
+  .next-hint {
+    text-align: center;
+    margin-top: 16px;
+    font-size: 14px;
+    color: var(--accent);
+    min-height: 20px;
+  }
+  .final { text-align: center; }
+  .final .score-big { font-size: 24px; font-weight: bold; color: var(--accent); margin: 18px 0; }
+  .final .thanks { font-size: 22px; margin-bottom: 24px; }
+  .final button {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 15px;
+    cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+
+<script>
+// 50 вопросов из лекции "Жоғары мектепті реформаландыру"
+const data = [
+  { term: "Тенденция", def: "Латын тілінен аударғанда қандай да бір құбылыстардың, ой-пікірдің, идеяның даму бағыты." },
+  { term: "«Ұлттық университет» мәртебесі", def: "Жоғары оқу орнының түріне, ұйымдық-құқықтық нысанына, мемлекеттік аккредиттеудің болуына немесе болмауына байланысты айқындалатын мәртебе." },
+  { term: "Ұлттық университет мәртебесі қашан берілді", def: "2001 жылы 5 шілдеде ҚР Президентінің Жарлығымен 8 жоғары оқу орнына берілді." },
+  { term: "Әл-Фараби атындағы университет", def: "Қазақ ұлттық университеті — ұлттық университет мәртебесі бар оқу орны." },
+  { term: "Л.Н.Гумилев атындағы университет", def: "Еуразия ұлттық университеті." },
+  { term: "Абай атындағы университет", def: "Қазақ ұлттық педагогикалық университеті." },
+  { term: "Қ.Сатпаев атындағы университет", def: "Қазақ ұлттық техникалық университеті." },
+  { term: "С.Асфендияров атындағы университет", def: "Қазақ ұлттық медициналық университеті." },
+  { term: "Т.Жүргенов атындағы академия", def: "Қазақ ұлттық өнер академиясы." },
+  { term: "Құрманғазы атындағы консерватория", def: "Қазақ ұлттық консерваториясы." },
+  { term: "Институт (ЖОО түрі)", def: "Жоғары кәсіптік білім беру бағдарламаларын, белгілі бір сала бойынша қызметкерлерді даярлау мен қайта даярлауды, іргелі және қолданбалы ғылыми зерттеулерді жүзеге асыратын ұйым түрі." },
+  { term: "Университет (ЖОО түрі)", def: "Мамандықтардың кең спектрі бойынша жоғары білікті қызметкерлерді, ғылыми және ғылыми-педагогикалық кадрларды даярлайтын, әдістемелік орталық қызметін атқаратын ЖОО түрі." },
+  { term: "Академия (ЖОО түрі)", def: "Жоғары оқу орнынан кейінгі кәсіптік білім беру бағдарламаларын, белгілі бір сала бойынша мамандарды даярлауды, іргелі және қолданбалы зерттеулерді жүзеге асыратын ұйым түрі." },
+  { term: "1918 жылы құрылған оқу орны", def: "Түркістан шығыс институты (кейінгі Орта Азия университеті)." },
+  { term: "1926 жылғы оқиға", def: "Ташкент жоғары педагогикалық институтында қазақ факультеті құрылды." },
+  { term: "1928 жылғы оқиға", def: "Факультет Алматыға көшіріліп, Қазақ мемлекеттік университеті болып қайта құрылды." },
+  { term: "1930 жылғы өзгеріс", def: "Университет Қазақ педагогикалық институты болып өзгертілді." },
+  { term: "1935 жылғы оқиға", def: "Институт Абай Құнанбаевтың есімін алды." },
+  { term: "1929 жылы Алматыда ашылған институт", def: "Зооветеринарлық институт." },
+  { term: "1931 жылы Алматыда ашылған институт", def: "Республикадағы алғашқы медициналық институт." },
+  { term: "1934 жылы ашылған екі жоғары оқу орны", def: "Тау-кен металлургия институты мен С.Киров атындағы Қазақ мемлекеттік университеті." },
+  { term: "Бірінші кезең (1991–1994)", def: "Жоғары білім берудің заңнамалық және нормативтік құқықтық базасының қалыптасуы." },
+  { term: "Екінші кезең (1995–1998)", def: "Жоғары білім беру жүйесін модернизациялау, оның мазмұнын жаңарту." },
+  { term: "Үшінші кезең (1999–2000)", def: "Білім беруді басқару мен қаржыландыруды орталықсыздандыру, ЖОО академиялық еркіндіктерін кеңейту." },
+  { term: "Төртінші кезең (2000 жылдан қазірге дейін)", def: "Жоғары білім беру жүйесін стратегиялық дамыту." },
+  { term: "«Білім туралы» Заң қашан қабылданды", def: "1999 жылы 7 маусымда." },
+  { term: "«Ғылым туралы» Заң қашан қабылданды", def: "2011 жылы 18 ақпанда." },
+  { term: "ЮНЕСКО (1997ж.) бойынша білім беру анықтамасы", def: "Жеке тұлғаның әлеуметтік жетілуі мен жеке өсуі қамтылатын оның қабілеттіліктері мен мінез-құлқын жетілдіру үдерісі мен нәтижесі." },
+  { term: "Гершунскийдің білім беру ұғымының 4 аспектісі", def: "Білім беру құндылық, жүйе, процесс және нәтиже ретінде қарастырылады." },
+  { term: "Білім беру құндылық ретінде", def: "Мемлекеттік құндылық, қоғамдық құндылық және тұлғалық құндылық түрлерін қамтиды." },
+  { term: "Білім беру жүйе ретінде", def: "Тарихи қалыптасқан, бір-бірімен сабақтасқан және біртіндеп бір-біріне ауысатын білім беру парадигмаларынан туындайтын жүйе." },
+  { term: "Білім беру процесс ретінде", def: "Белгілі бір нәтижеге қол жеткізудегі іс-қимылдар мен әрекеттер жиынтығы, мақсатқа бағытталған және күтілетін нәтижеге тікелей байланысты." },
+  { term: "Білім беру нәтиже ретінде", def: "Сауаттылық — білімділік — кәсіби құзыреттілік — мәдениет тізбегімен анықталады." },
+  { term: "«Білім туралы» Заңның 10-бабы бойынша білім беру жүйесі", def: "Білім беру деңгейлерінің сабақтастығын қамтамасыз ететін мемлекеттік стандарттар мен білім беру бағдарламаларының, оқу орындарының, басқару органдарының жиынтығы." },
+  { term: "Білім беру жүйесінің 5 деңгейі", def: "Мектепке дейінгі, бастауыш/негізгі орта/жалпы орта, техникалық және кәсіптік (арнайы орта), жоғары, ЖОО кейінгі білім беру жүйесі." },
+  { term: "Болон процесі анықтамасы", def: "Жоғары білім министрлерінің Декларациясына сәйкес, еуропалық жоғары білім жүйесін жақындату процесін белгілеу үшін қолданылатын термин." },
+  { term: "Болон декларациясы қашан қабылданды", def: "1999 жылы 19 маусымда, Болоньяда (Италия), Еуропаның 29 елінің білім министрлері қол қойды." },
+  { term: "Қазақстан Болон процесіне қашан қосылды", def: "2010 жылдың 11 наурызынан бастап, Орта Азия мемлекеттерінің ішінен бірінші болып, Еуропалық білім беру кеңістігінің 47-ші мүшесі ретінде." },
+  { term: "Болон процесінің міндетті параметрлері", def: "Жоғары білімнің үш деңгейлі жүйесі, академиялық кредиттер ECTS, студенттердің академиялық ұтқырлығы, дипломға Еуропалық қосымша, жоғары білім сапасын бағалау, бірегей еуропалық зерттеу кеңістігін құру." },
+  { term: "Болон процесінің ұсынылатын параметрлері", def: "Студенттерді белсенді қатыстыру/тарту, аз қамтылған студенттерге әлеуметтік қолдау көрсету, өмір бойы білім алу." },
+  { term: "Болон процесінің факультативтік параметрлері", def: "Даярлау бағыты бойынша білім мазмұнын үйлестіру, таңдау курстары бойынша сызықты емес траектория, модульдік жүйе мен қашықтан оқыту, оқытушылар мен студенттердің академиялық рейтингісі." },
+  { term: "Дублиндік дескрипторлар", def: "Болондық құрылымда біліктіліктің білім беру бағдарламаларын меңгеру нәтижелеріне негізделген, маманның 5 біліктілігін айқындайтын сипаттама." },
+  { term: "Жоғары кәсіптік білім беру жүйесін дамытудың негізгі мақсаты", def: "Қоғамның, мемлекеттің және жеке тұлғаның ұзақ мерзімді стратегиялық мүдделерін қанағаттандыру, мамандар даярлау сапасын арттыру." },
+  { term: "Білім беруді демократияландыру", def: "Білімнің қолжетімділігін қамтамасыз ету, студентке және педагогке өз мүмкіндіктерін дамытуға жағдай жасау, академиялық еркіндік беру." },
+  { term: "Білім беруді гуманитарландыру", def: "Гуманистік дүниетаным мен жеке тұлғаның өзін-өзі дамыту процестеріне негізделген, тұлға дамуына жағдай жасауға бағытталған қағида." },
+  { term: "Білім беруді диверсификациялау", def: "Білім беру ұйымдарының көптүрлілігі мен санауан түрлі нұсқалылығын белгілейтін принцип." },
+  { term: "Диверсификацияның салдары", def: "Білімнің вариативтілігі (оқыту траекториясын таңдау) және кәсібилік (профилдік оқытуды таңдау)." },
+  { term: "Білім беруді интернационализациялау", def: "Жоғары білім сапасын арттыру құралы, шетелдік студенттер мен оқытушылардың, ұтқырлықтың деңгейі." },
+  { term: "Кәсіптік білім анықтамасы", def: "Білім алушылардың белгілі бір салада кәсіптік қызметті жүргізуіне мүмкіндік беретін білімдерді, машықтарды, дағдыларды алуына бағытталған білім беру түрі." },
+  { term: "ЖОО-да көп деңгейлі оқыту құрылымы", def: "Бакалавриат (4 жыл), Магистратура (1–2 жыл), Докторантура (3 жыл)." },
+  { term: "Кәсіптік білім беру жүйесінің деңгейлері", def: "Бастауыш кәсіптік білім, орта кәсіптік білім, жоғары кәсіптік білім, жоғары білімнен кейінгі кәсіптік білім, қосымша кәсіптік білім." }
+];
+
+const BATCH_SIZE = 5;
+const NUM_OPTIONS = 5;
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+let order = [];
+let batchIndex = 0;
+let totalScore = 0;
+let answeredInBatch = 0;
+let batchOptionsCache = [];
+
+function startGame() {
+  order = shuffle(data.map((_, i) => i));
+  batchIndex = 0;
+  totalScore = 0;
+  renderBatch();
+}
+
+function currentBatchIndices() {
+  const start = batchIndex * BATCH_SIZE;
+  return order.slice(start, start + BATCH_SIZE);
+}
+
+function buildOptionsFor(correctIdx) {
+  const others = data.map((_, i) => i).filter(i => i !== correctIdx);
+  const distractorCount = Math.min(NUM_OPTIONS - 1, others.length);
+  const distractors = shuffle(others).slice(0, distractorCount);
+  return shuffle([correctIdx, ...distractors]);
+}
+
+function renderBatch() {
+  const app = document.getElementById('app');
+  const indices = currentBatchIndices();
+
+  if (indices.length === 0) {
+    renderFinal();
+    return;
+  }
+
+  answeredInBatch = 0;
+  batchOptionsCache = indices.map(correctIdx => buildOptionsFor(correctIdx));
+
+  const totalBatches = Math.ceil(data.length / BATCH_SIZE);
+  app.innerHTML = `
+    <h1>Жоғары мектепті реформалау — викторина</h1>
+    <div class="topbar">
+      <div></div>
+      <button onclick="startGame()">Қайта бастау</button>
+    </div>
+    <div class="progress">Топ: ${batchIndex + 1} / ${totalBatches} (сұрақ ${batchIndex * BATCH_SIZE + 1}–${batchIndex * BATCH_SIZE + indices.length} / ${data.length})</div>
+    <div class="score" id="scoreLine">Ұпай: ${totalScore}</div>
+    <div class="batch" id="batchDiv"></div>
+    <div class="next-hint" id="nextHint"></div>
+  `;
+
+  const batchDiv = document.getElementById('batchDiv');
+  indices.forEach((correctIdx, qPos) => {
+    const item = data[correctIdx];
+    const options = batchOptionsCache[qPos];
+
+    const card = document.createElement('div');
+    card.className = 'qcard';
+    card.dataset.qpos = qPos;
+
+    const termDiv = document.createElement('div');
+    termDiv.className = 'qterm';
+    termDiv.textContent = `${batchIndex * BATCH_SIZE + qPos + 1}. ${item.term}`;
+    card.appendChild(termDiv);
+
+    const optsDiv = document.createElement('div');
+    optsDiv.className = 'options';
+    options.forEach(optIdx => {
+      const optItem = data[optIdx];
+      const optDiv = document.createElement('div');
+      optDiv.className = 'option';
+      optDiv.textContent = optItem.def;
+      optDiv.onclick = () => onOptionClick(qPos, optIdx, correctIdx, optDiv, card);
+      optsDiv.appendChild(optDiv);
+    });
+    card.appendChild(optsDiv);
+    batchDiv.appendChild(card);
+  });
+}
+
+function onOptionClick(qPos, chosenIdx, correctIdx, el, cardEl) {
+  if (cardEl.dataset.answered === '1') return;
+  cardEl.dataset.answered = '1';
+
+  const optionEls = cardEl.querySelectorAll('.option');
+  optionEls.forEach(o => o.classList.add('disabled'));
+
+  if (chosenIdx === correctIdx) {
+    el.classList.add('correct');
+    totalScore += 1;
+  } else {
+    el.classList.add('wrong');
+    optionEls.forEach(o => {
+      if (o.textContent === data[correctIdx].def) o.classList.add('correct');
+    });
+  }
+
+  document.getElementById('scoreLine').textContent = `Ұпай: ${totalScore}`;
+  answeredInBatch++;
+
+  const totalInBatch = currentBatchIndices().length;
+  if (answeredInBatch >= totalInBatch) {
+    document.getElementById('nextHint').textContent = 'Келесі 5 сұраққа өтеміз...';
+    setTimeout(() => {
+      batchIndex++;
+      renderBatch();
+    }, 1400);
+  }
+}
+
+function renderFinal() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="final">
+      <h1>Викторина аяқталды!</h1>
+      <div class="score-big">Сіздің қорытынды баллыңыз: ${totalScore} / ${data.length}</div>
+      <div class="thanks">Қатысқаныңыз үшін рахмет! 🙏</div>
+      <button onclick="startGame()">Қайта ойнау</button>
+    </div>
+  `;
+}
+
+startGame();
+</script>
+</body>
+</html>
